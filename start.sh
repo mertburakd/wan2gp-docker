@@ -98,24 +98,22 @@ handle_managed_dir() {
         if [ "$target_dir" == "${APP_LORAS_DIR}" ]; then
             echo "Ensuring default ${target_dir} directory exists (for LoRA symlink targets)."
             mkdir -p "${target_dir}"
-        else
-            # For ckpts, settings, outputs: if W2GP_ var is not set, assume git pull or app handles them,
-            # or it's a direct bind mount.
-            echo "Assuming ${target_dir} is populated by git pull, app, or is a direct bind mount."
         fi
+
+        echo "Using default application directory: ${target_dir}"
     fi
 }
 
-echo "--- Configuring Application Directories and LoRA Symlinks ---"
+# --- Setup Application Directories ---
+echo "--- Setting up Application Directories ---"
+handle_managed_dir "${APP_CKPTS_DIR}" "${W2GP_MODELS}" "W2GP_MODELS"
+handle_managed_dir "${APP_OUTPUTS_DIR}" "${W2GP_OUTPUTS}" "W2GP_OUTPUTS"
+handle_managed_dir "${APP_SETTINGS_DIR}" "${W2GP_SETTINGS}" "W2GP_SETTINGS"
+handle_managed_dir "${APP_LORAS_DIR}" "${W2GP_LORAS}" "W2GP_LORAS"
 
-# 1. Handle W2GP_LORAS, W2GP_MODELS, W2GP_SETTINGS, W2GP_OUTPUTS using the helper function
-handle_managed_dir "${APP_LORAS_DIR}" "$W2GP_LORAS" "W2GP_LORAS"
-handle_managed_dir "${APP_CKPTS_DIR}" "$W2GP_MODELS" "W2GP_MODELS"
-handle_managed_dir "${APP_SETTINGS_DIR}" "$W2GP_SETTINGS" "W2GP_SETTINGS"
-handle_managed_dir "${APP_OUTPUTS_DIR}" "$W2GP_OUTPUTS" "W2GP_OUTPUTS"
-
-# 2. Create symlinks for specific LoRA types to point to the (potentially re-mapped or mounted) APP_LORAS_DIR
-# This runs after APP_LORAS_DIR is settled (either as default, symlinked via W2GP_LORAS, or a direct mount).
+# --- Create LoRA Type Symlinks ---
+# These symlinks ensure that wgp.py can find the proper LoRA directories regardless of which
+# specific LoRA type it's looking for. They all point to the central APP_LORAS_DIR.
 echo "Setting up specific LoRA type symlinks to point to ${APP_LORAS_DIR}..."
 LORA_TYPE_TARGET_DIRS=(
     "${APP_LORAS_HUNYUAN_DIR}"

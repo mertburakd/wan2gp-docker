@@ -1,0 +1,80 @@
+version: "3.8"
+services:
+  wan2gp:
+    # Build from local source instead of using the old image
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # Or use a custom image name if you want to build and push to registry
+    # image: your-registry/wan2gp:latest
+    container_name: wan2gp_service
+    restart: unless-stopped
+    ports:
+      - "7860:7860" # Maps port 7860 on the host to port 7860 in the container
+
+    # --- GPU Configuration ---
+    # Ensure you have the NVIDIA Docker runtime installed on your host.
+    # For Docker Compose version 2.3+ / Docker Engine 19.03+:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+              # Optionally specify GPU count or IDs:
+               count: 1
+               device_ids: ['0']
+
+    # For older Docker versions, you might need 'runtime: nvidia' directly under the service.
+    # runtime: nvidia
+
+    # --- Configuration Options: Choose Environment Variables OR Direct Bind Mounts ---
+    # Option 1: Configure paths using W2GP_ Environment Variables
+    # The start.sh script inside the container will create symlinks from /app/* to these paths.
+    # Useful if you prefer to manage paths via ENV VARS or on platforms like RunPod.
+    # If you use these, typically DO NOT use the corresponding direct bind mount in the 'volumes' section.
+    environment:
+      # --- Core Application Arguments (controlled by start.sh) ---
+      - W2GP_LISTEN=true # Default is true; set to "false" to disable --listen flag.
+      # - W2GP_PROFILE=3   # No default profile is set by start.sh if this is unset; wgp.py uses its own default.
+      - W2GP_SERVER_PORT=7860
+      - W2GP_SERVER_NAME=0.0.0.0
+
+      # --- Path Redirection via Symlinks (managed by start.sh) ---
+      # These allow you to point the application's internal directories to external storage.
+      # Example for local development:
+      # - W2GP_LORAS=/host/path/to/loras
+      # - W2GP_MODELS=/host/path/to/models
+      # - W2GP_SETTINGS=/host/path/to/settings
+      # - W2GP_OUTPUTS=/host/path/to/outputs
+
+      # Example for RunPod-like persistent storage:
+      # - W2GP_LORAS=/workspace/wan2gp_data/loras
+      # - W2GP_MODELS=/workspace/wan2gp_data/models
+      # - W2GP_SETTINGS=/workspace/wan2gp_data/settings
+      # - W2GP_OUTPUTS=/workspace/wan2gp_data/outputs
+
+    # Option 2: Configure paths using Direct Bind Mounts
+    # This directly maps a host directory to a directory inside the container.
+    # If you use a direct bind mount for a path (e.g., /app/ckpts),
+    # DO NOT set the corresponding W2GP_ environment variable (e.g., W2GP_MODELS).
+    # The start.sh script will detect and prioritize direct mounts.
+    volumes:
+      # Syntax: - /path/on/your/host:/path/inside/container
+      # Example for LoRAs:
+      - ./loras:/app/loras
+      # Example for Models/Checkpoints:
+      - ./models:/app/ckpts
+      # Example for Settings:
+      - ./settings:/app/settings
+      # Example for Outputs:
+      - ./outputs:/app/outputs
+
+      # Optional: Mount the entire source code for development
+      # - .:/app
+
+    # If you need to pass additional command-line arguments to wgp.py
+    # that are not handled by the W2GP_ environment variables in start.sh,
+    # you can add them here. They will be appended by "$@" in start.sh.
+    # Please see the Wan2GP GitHub for available options - most can be set through the settings page.
+    # command: ["--some-other-wgp-arg", "value"]
