@@ -1,20 +1,92 @@
 #!/bin/bash
 set -e # Exit immediately if a command exits with a non-zero status.
 
-echo "Container started. Running custom start.sh script..."
+echo "🚀 Wan2GP Container Started - All-in-One Setup"
+echo "=============================================="
 echo "Timestamp: $(date)"
 
-# --- Activate Python Environment ---
+# --- Ensure /app directory exists ---
+echo "📁 Ensuring /app directory exists..."
+if [ ! -d "/app" ]; then
+    echo "Creating /app directory..."
+    mkdir -p /app
+    echo "✅ /app directory created"
+fi
+
+# --- Check if we need to clone the repository ---
+echo "📦 Checking Wan2GP repository..."
+if [ ! -f "/app/wgp.py" ]; then
+    echo "Repository not found. Cloning latest Wan2GP..."
+    cd /app
+    git clone https://github.com/deepbeepmeep/Wan2GP.git temp_repo
+    
+    # Move contents from temp directory to /app
+    mv temp_repo/* . 2>/dev/null || true
+    mv temp_repo/.* . 2>/dev/null || true
+    rm -rf temp_repo
+    
+    echo "✅ Repository cloned successfully"
+else
+    echo "✅ Repository already exists"
+fi
+
+# --- Update repository if needed ---
+echo "🔄 Checking for updates..."
+cd /app
+if [ -d ".git" ]; then
+    git fetch origin
+    LOCAL=$(git rev-parse HEAD)
+    REMOTE=$(git rev-parse origin/main)
+    
+    if [ "$LOCAL" != "$REMOTE" ]; then
+        echo "🆕 Updates available. Pulling latest changes..."
+        git pull origin main
+        echo "✅ Repository updated"
+    else
+        echo "✅ Repository is up to date"
+    fi
+fi
+
+# --- Install/Update Python Dependencies ---
+echo "🐍 Setting up Python environment..."
 echo "Using Python from base PyTorch image (Conda environment)."
+
+# Check if requirements.txt exists and install dependencies
+if [ -f "requirements.txt" ]; then
+    echo "📋 Installing/updating Python dependencies..."
+    
+    # Install PyTorch if not present - RTX 3080 Ti Stable Version
+    python -c "import torch" 2>/dev/null || {
+        echo "Installing PyTorch 2.6.0 for RTX 3080 Ti..."
+        pip3 install torch==2.6.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/test/cu124
+    }
+    
+    # Install requirements
+    pip3 install -r requirements.txt
+    
+    # Install optional performance enhancements - RTX 3080 Ti optimized
+    echo "🚀 Installing performance enhancements for RTX 3080 Ti..."
+    
+    # SageAttention - 30% hız artışı, hızlı kurulum
+    pip3 install sageattention==1.0.6 || echo "⚠️  SageAttention installation failed, continuing..."
+    
+    # Flash Attention - Sadece precompiled wheel kullan, compile etme
+    echo "🔧 Checking for precompiled Flash Attention wheel..."
+    pip3 install flash-attn==2.7.2.post1 --no-build-isolation || echo "⚠️  Flash attention precompiled wheel not available, skipping compilation to save time..."
+    
+    echo "✅ Dependencies installed"
+else
+    echo "⚠️  requirements.txt not found, skipping dependency installation"
+fi
 
 # --- Environment Sanity Checks ---
 echo "--- Environment Checks ---"
 echo "User: $(whoami)"
 echo "Workdir: $(pwd)" # Should be /app
 echo "Python version: $(python --version)"
-echo "PyTorch version: $(python -c 'import torch; print(torch.__version__)')"
-echo "CUDA available: $(python -c 'import torch; print(torch.cuda.is_available())')"
-if python -c 'import torch; exit(not torch.cuda.is_available())'; then
+echo "PyTorch version: $(python -c 'import torch; print(torch.__version__)' 2>/dev/null || echo 'Not installed')"
+echo "CUDA available: $(python -c 'import torch; print(torch.cuda.is_available())' 2>/dev/null || echo 'Cannot check')"
+if python -c 'import torch; exit(not torch.cuda.is_available())' 2>/dev/null; then
     echo "CUDA device count: $(python -c 'import torch; print(torch.cuda.device_count())')"
     if [ "$(python -c 'import torch; print(torch.cuda.device_count())')" -gt "0" ]; then
       echo "Current CUDA device: $(python -c 'import torch; print(torch.cuda.current_device())')"
@@ -97,7 +169,12 @@ handle_managed_dir() {
         # This is safe even if APP_LORAS_DIR is a direct bind mount (mkdir -p won't delete content).
         if [ "$target_dir" == "${APP_LORAS_DIR}" ]; then
             echo "Ensuring default ${target_dir} directory exists (for LoRA symlink targets)."
+        fi
+        
+        # Create directory if it doesn't exist
+        if [ ! -d "${target_dir}" ]; then
             mkdir -p "${target_dir}"
+            echo "Created directory: ${target_dir}"
         fi
 
         echo "Using default application directory: ${target_dir}"
@@ -188,9 +265,10 @@ if [ "$#" -gt 0 ]; then
     COMMAND_ARGS+=("$@")
 fi
 
-echo "--- Wan2GP Execution ---"
+echo "--- Starting Wan2GP ---"
 echo "Final command to be executed: ${COMMAND_ARGS[*]}"
-echo "------------------------"
+echo "🌐 Application will be available at http://localhost:7860"
+echo "========================"
 
 # Execute the command
 exec "${COMMAND_ARGS[@]}"

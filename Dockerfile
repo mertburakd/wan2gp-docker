@@ -1,6 +1,6 @@
-# Wan2GP Dockerfile - Güncel Versiyon
+# Wan2GP Dockerfile - RTX 3080 Ti Optimized Setup
 # PyTorch base image with CUDA support
-FROM pytorch/pytorch:2.7.1-cuda12.8-cudnn9-devel
+FROM pytorch/pytorch:2.6.0-cuda12.4-cudnn9-devel
 
 # Set working directory
 WORKDIR /app
@@ -12,24 +12,10 @@ RUN apt-get update && apt-get install -y \
     wget \
     curl \
     unzip \
+    sudo \
     && rm -rf /var/lib/apt/lists/*
 
-# Clone the latest Wan2GP repository
-RUN git clone https://github.com/deepbeepmeep/Wan2GP.git .
-
-# Install Python dependencies
-RUN pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
-RUN pip3 install -r requirements.txt
-
-# Install optional performance enhancements
-RUN pip3 install sageattention==1.0.6 || echo "SageAttention installation failed, continuing..."
-RUN pip3 install flash-attn==2.7.2.post1 || echo "Flash attention installation failed, continuing..."
-
-# Create necessary directories
-RUN mkdir -p /app/ckpts /app/outputs /app/settings /app/loras \
-    /app/loras_hunyuan /app/loras_hunyuan_i2v /app/loras_i2v /app/loras_ltxv
-
-# Copy the start script
+# Copy the start script that will handle everything
 COPY start.sh /app/start.sh
 RUN chmod +x /app/start.sh
 
